@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Music Mood Analyzer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    /* ─── TOKENS ────────────────────────────────── */
+    :root {
+      --bg:          #09090f;
+      --surface:     #111118;
+      --card:        #16161f;
+      --border:      rgba(255,255,255,0.07);
+      --accent:      #7c3aed;
+      --accent2:     #06b6d4;
+      --accent3:     #f472b6;
+      --text:        #e8e8f0;
+      --muted:       #6b6b80;
+      --font-head:   'Syne', sans-serif;
+      --font-mono:   'DM Mono', monospace;
+      --radius:      14px;
+      --glow:        0 0 40px rgba(124,58,237,0.25);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-mono);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ─── ANIMATED BG ───────────────────────────── */
+    .bg-orbs {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    }
+    .orb {
+      position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.15;
+      animation: drift 18s ease-in-out infinite alternate;
+    }
+    .orb-1 { width:500px; height:500px; background:var(--accent);  top:-10%; left:-10%; animation-delay:0s; }
+    .orb-2 { width:400px; height:400px; background:var(--accent2); bottom:-10%; right:-5%; animation-delay:-6s; }
+    .orb-3 { width:300px; height:300px; background:var(--accent3); top:40%; left:50%; animation-delay:-12s; }
+    @keyframes drift { from { transform: translate(0,0) scale(1); } to { transform: translate(40px,30px) scale(1.1); } }
+
+    /* ─── WAVEFORM BARS ─────────────────────────── */
+    .waveform {
+      display: flex; align-items: flex-end; gap: 3px; height: 28px;
+    }
+    .waveform span {
+      width: 3px; border-radius: 2px; background: var(--accent);
+      animation: wave 1.2s ease-in-out infinite alternate;
+      opacity: 0.8;
+    }
+    @keyframes wave { from { height: 4px; } to { height: 100%; } }
+    .waveform span:nth-child(1)  { animation-delay: 0.0s; }
+    .waveform span:nth-child(2)  { animation-delay: 0.1s; }
+    .waveform span:nth-child(3)  { animation-delay: 0.2s; }
+    .waveform span:nth-child(4)  { animation-delay: 0.3s; }
+    .waveform span:nth-child(5)  { animation-delay: 0.15s; }
+    .waveform span:nth-child(6)  { animation-delay: 0.05s; }
+    .waveform span:nth-child(7)  { animation-delay: 0.25s; }
+    .waveform span:nth-child(8)  { animation-delay: 0.35s; }
+
+    /* ─── LAYOUT ─────────────────────────────────── */
+    .wrapper { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; padding: 0 24px; }
+
+    /* ─── HEADER ─────────────────────────────────── */
+    header {
+      padding: 36px 0 28px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+    }
+    .logo {
+      display: flex; align-items: center; gap: 14px;
+    }
+    .logo-icon {
+      width: 42px; height: 42px; border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent), var(--accent3));
+      display: grid; place-items: center; font-size: 20px;
+      box-shadow: var(--glow);
+    }
+    .logo h1 {
+      font-family: var(--font-head);
+      font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em;
+    }
+    .logo span { color: var(--accent); }
+    .header-right {
+      display: flex; align-items: center; gap: 16px;
+    }
+    .badge {
+      padding: 4px 12px; border-radius: 100px;
+      border: 1px solid var(--border);
+      font-size: 0.7rem; color: var(--muted);
+      letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    .badge.live { border-color: rgba(6,182,212,0.3); color: var(--accent2); }
+    .badge.live::before { content: '● '; }
+
+    /* ─── STATS ROW ──────────────────────────────── */
+    .stats-row {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+      margin: 32px 0;
+    }
+    .stat-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px 24px;
+      transition: border-color 0.2s, transform 0.2s;
+      animation: slideUp 0.5s ease both;
+    }
+    .stat-card:hover { border-color: rgba(124,58,237,0.3); transform: translateY(-2px); }
+    .stat-card:nth-child(1) { animation-delay: 0.05s; }
+    .stat-card:nth-child(2) { animation-delay: 0.10s; }
+    .stat-card:nth-child(3) { animation-delay: 0.15s; }
+    .stat-card:nth-child(4) { animation-delay: 0.20s; }
+    @keyframes slideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:none; } }
+
+    .stat-label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
+    .stat-value { font-family: var(--font-head); font-size: 2rem; font-weight: 800; }
+    .stat-value.accent  { color: var(--accent); }
+    .stat-value.accent2 { color: var(--accent2); }
+    .stat-value.accent3 { color: var(--accent3); }
+    .stat-sub   { font-size: 0.7rem; color: var(--muted); margin-top: 4px; }
+
+    /* ─── SECTION TITLE ──────────────────────────── */
+    .section-title {
+      font-family: var(--font-head); font-size: 1.1rem; font-weight: 700;
+      margin-bottom: 16px; display: flex; align-items: center; gap: 10px;
+    }
+    .section-title::before {
+      content: ''; display: block; width: 4px; height: 18px;
+      border-radius: 2px; background: linear-gradient(to bottom, var(--accent), var(--accent3));
+    }
+
+    /* ─── GRID ───────────────────────────────────── */
+    .grid-2   { display: grid; grid-template-columns: 1fr 1fr;   gap: 20px; margin-bottom: 20px; }
+    .grid-3   { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+
+    /* ─── CARD ───────────────────────────────────── */
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 24px;
+      animation: slideUp 0.5s ease both;
+    }
+    .card.span-2 { grid-column: span 2; }
+    .card canvas { max-height: 280px; }
+
+    /* ─── MOOD SELECTOR ──────────────────────────── */
+    #mood-section { margin-bottom: 20px; }
+    .mood-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+      margin-bottom: 20px;
+    }
+    .mood-btn {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 10px;
+      cursor: pointer; font-family: var(--font-mono);
+      font-size: 0.78rem; color: var(--muted);
+      transition: all 0.18s; text-align: center;
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+    }
+    .mood-btn .mood-emoji { font-size: 1.4rem; }
+    .mood-btn:hover, .mood-btn.active {
+      border-color: var(--accent); color: var(--text); background: rgba(124,58,237,0.12);
+    }
+    .mood-btn.active { box-shadow: 0 0 0 1px var(--accent); }
+
+    /* ─── RESULTS TABLE ──────────────────────────── */
+    .results-header {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+    }
+    .results-tag {
+      font-size: 0.68rem; padding: 3px 10px; border-radius: 100px;
+      background: rgba(124,58,237,0.2); color: var(--accent);
+      border: 1px solid rgba(124,58,237,0.3);
+    }
+
+    .song-list { display: flex; flex-direction: column; gap: 10px; }
+    .song-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 18px;
+      display: grid; grid-template-columns: auto 1fr auto;
+      align-items: center; gap: 14px;
+      transition: border-color 0.18s, transform 0.18s;
+      animation: slideUp 0.3s ease both;
+    }
+    .song-card:hover { border-color: rgba(124,58,237,0.3); transform: translateX(3px); }
+    .song-rank {
+      font-family: var(--font-head); font-size: 1.3rem; font-weight: 800;
+      color: var(--accent); min-width: 28px; text-align: center; opacity: 0.7;
+    }
+    .song-info .song-name   { font-weight: 500; font-size: 0.9rem; margin-bottom: 2px; }
+    .song-info .song-artist { font-size: 0.75rem; color: var(--muted); }
+    .song-info .song-genre  {
+      display: inline-block; margin-top: 4px;
+      font-size: 0.65rem; padding: 2px 8px; border-radius: 100px;
+      background: rgba(6,182,212,0.12); color: var(--accent2);
+      border: 1px solid rgba(6,182,212,0.2);
+    }
+    .song-feats {
+      display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+    }
+    .feat-bar-wrap { display: flex; align-items: center; gap: 8px; }
+    .feat-label { font-size: 0.62rem; color: var(--muted); width: 52px; text-align: right; }
+    .feat-bar { width: 60px; height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
+    .feat-bar-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+
+    /* ─── LOADING ────────────────────────────────── */
+    .loading {
+      display: flex; align-items: center; justify-content: center;
+      gap: 12px; padding: 48px; color: var(--muted); font-size: 0.85rem;
+    }
+    .spinner {
+      width: 20px; height: 20px; border-radius: 50%;
+      border: 2px solid var(--border); border-top-color: var(--accent);
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── FOOTER ─────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border); padding: 28px 0;
+      text-align: center; color: var(--muted); font-size: 0.72rem;
+      margin-top: 40px; letter-spacing: 0.04em;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+
+    /* ─── RESPONSIVE ─────────────────────────────── */
+    @media (max-width: 768px) {
+      .stats-row { grid-template-columns: 1fr 1fr; }
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      .card.span-2 { grid-column: span 1; }
+      .mood-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="bg-orbs">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+</div>
+
+<div class="wrapper">
+
+  <!-- ─── HEADER ──────────────────────────────────── -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🎵</div>
+      <div>
+        <h1>Music <span>Mood</span> Analyzer</h1>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="waveform" id="waveform">
+        <span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span>
+      </div>
+      <span class="badge live">API Live</span>
+      <span class="badge">K-Means · PCA · NLP</span>
+    </div>
+  </header>
+
+  <!-- ─── STAT CARDS ───────────────────────────────── -->
+  <div class="stats-row" id="stats-row">
+    <div class="stat-card"><div class="stat-label">Total Songs</div><div class="stat-value accent" id="s-songs">—</div><div class="stat-sub">Synthetic dataset</div></div>
+    <div class="stat-card"><div class="stat-label">Genres</div><div class="stat-value accent2" id="s-genres">—</div><div class="stat-sub">Distinct categories</div></div>
+    <div class="stat-card"><div class="stat-label">Year Range</div><div class="stat-value accent3" id="s-years">—</div><div class="stat-sub">Decade coverage</div></div>
+    <div class="stat-card"><div class="stat-label">Mood Clusters</div><div class="stat-value" id="s-clusters">8</div><div class="stat-sub">K-Means groups</div></div>
+  </div>
+
+  <!-- ─── ROW 1: Genre Radar + Decade Trends ──────── -->
+  <div class="grid-2">
+    <div class="card" style="animation-delay:0.1s">
+      <div class="section-title">Genre Audio Profile</div>
+      <canvas id="chart-genre-radar"></canvas>
+    </div>
+    <div class="card" style="animation-delay:0.15s">
+      <div class="section-title">Feature Trends by Decade</div>
+      <canvas id="chart-decade"></canvas>
+    </div>
+  </div>
+
+  <!-- ─── ROW 2: PCA Scatter ──────────────────────── -->
+  <div style="margin-bottom:20px">
+    <div class="card" style="animation-delay:0.2s">
+      <div class="section-title">K-Means Cluster Map (PCA 2D)</div>
+      <canvas id="chart-pca" style="max-height:320px"></canvas>
+    </div>
+  </div>
+
+  <!-- ─── ROW 3: Correlation + Popularity ─────────── -->
+  <div class="grid-2">
+    <div class="card" style="animation-delay:0.25s">
+      <div class="section-title">Feature Popularity Correlation</div>
+      <canvas id="chart-correlation"></canvas>
+    </div>
+    <div class="card" style="animation-delay:0.3s">
+      <div class="section-title">Danceability by Genre</div>
+      <canvas id="chart-dance"></canvas>
+    </div>
+  </div>
+
+  <!-- ─── MOOD RECOMMENDER ─────────────────────────── -->
+  <div class="card" id="mood-section" style="animation-delay:0.35s">
+    <div class="section-title">Mood-Based Recommender</div>
+    <p style="color:var(--muted);font-size:0.78rem;margin-bottom:18px;">
+      Select a mood — the ML engine finds songs whose audio features best match your vibe using weighted distance scoring.
+    </p>
+
+    <div class="mood-grid" id="mood-grid">
+      <button class="mood-btn" data-mood="happy">    <span class="mood-emoji">😄</span>Happy</button>
+      <button class="mood-btn" data-mood="sad">      <span class="mood-emoji">😢</span>Sad</button>
+      <button class="mood-btn" data-mood="energetic"><span class="mood-emoji">⚡</span>Energetic</button>
+      <button class="mood-btn" data-mood="calm">     <span class="mood-emoji">😌</span>Calm</button>
+      <button class="mood-btn" data-mood="angry">    <span class="mood-emoji">😤</span>Angry</button>
+      <button class="mood-btn" data-mood="romantic"> <span class="mood-emoji">💕</span>Romantic</button>
+      <button class="mood-btn" data-mood="focus">    <span class="mood-emoji">🎯</span>Focus</button>
+      <button class="mood-btn" data-mood="party">    <span class="mood-emoji">🎉</span>Party</button>
+    </div>
+
+    <div id="rec-results">
+      <div class="loading"><div class="spinner"></div>Choose a mood to get recommendations</div>
+    </div>
+  </div>
+
+  <footer>
+    Built with <a href="https://flask.palletsprojects.com/">Flask</a> · 
+    <a href="https://scikit-learn.org/">scikit-learn</a> · 
+    <a href="https://www.chartjs.org/">Chart.js</a> — 
+    Music Mood Analyzer &nbsp;|&nbsp; Data Science Mini Project
+  </footer>
+
+</div><!-- /wrapper -->
+
+<script>
+/* ═══════════════════════════════════════════════════
+   CONFIG
+═══════════════════════════════════════════════════ */
+const API = "http://127.0.0.1:5000/api";
+
+const GENRE_COLORS = {
+  "Pop":       "#7c3aed",
+  "Hip-Hop":   "#06b6d4",
+  "Rock":      "#f472b6",
+  "Classical": "#34d399",
+  "Electronic":"#fbbf24",
+  "Jazz":      "#f87171",
+  "R&B":       "#a78bfa",
+  "Indie":     "#fb923c",
+};
+
+const CHART_DEFAULTS = {
+  color: "#e8e8f0",
+  plugins: {
+    legend: { labels: { color:"#9898a8", font:{ family:"'DM Mono'", size:11 } } },
+    tooltip: { backgroundColor:"#16161f", borderColor:"rgba(255,255,255,0.08)", borderWidth:1,
+               titleColor:"#e8e8f0", bodyColor:"#9898a8", padding:10 }
+  },
+  scales: {
+    x: { ticks:{ color:"#6b6b80", font:{family:"'DM Mono'",size:10} }, grid:{ color:"rgba(255,255,255,0.04)" } },
+    y: { ticks:{ color:"#6b6b80", font:{family:"'DM Mono'",size:10} }, grid:{ color:"rgba(255,255,255,0.04)" } },
+  }
+};
+
+/* ═══════════════════════════════════════════════════
+   FETCH HELPERS
+═══════════════════════════════════════════════════ */
+async function fetchJSON(url, opts={}) {
+  const res = await fetch(url, opts);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+/* ═══════════════════════════════════════════════════
+   STATS
+═══════════════════════════════════════════════════ */
+async function loadStats() {
+  const d = await fetchJSON(`${API}/stats`);
+  document.getElementById("s-songs").textContent   = d.total_songs.toLocaleString();
+  document.getElementById("s-genres").textContent  = d.total_genres;
+  document.getElementById("s-years").textContent   = `${d.year_range[0]}–${d.year_range[1]}`;
+}
+
+/* ═══════════════════════════════════════════════════
+   GENRE RADAR
+═══════════════════════════════════════════════════ */
+async function loadGenreRadar() {
+  const data    = await fetchJSON(`${API}/genre-summary`);
+  const labels  = ["acousticness","danceability","energy","liveness","valence","speechiness"];
+  const genres  = ["Pop","Rock","Classical","Electronic","Jazz"];
+
+  const datasets = genres.map(g => {
+    const row = data.find(r => r.genre === g) || {};
+    return {
+      label: g,
+      data: labels.map(l => +(row[l]||0).toFixed(2)),
+      borderColor: GENRE_COLORS[g],
+      backgroundColor: GENRE_COLORS[g] + "22",
+      borderWidth: 2, pointRadius: 3,
+    };
+  });
+
+  new Chart(document.getElementById("chart-genre-radar"), {
+    type: "radar",
+    data: { labels: labels.map(l => l.charAt(0).toUpperCase()+l.slice(1)), datasets },
+    options: {
+      responsive: true,
+      plugins: CHART_DEFAULTS.plugins,
+      scales: { r: {
+        ticks: { color:"#6b6b80", backdropColor:"transparent", font:{family:"'DM Mono'",size:9} },
+        grid:  { color:"rgba(255,255,255,0.07)" },
+        angleLines: { color:"rgba(255,255,255,0.07)" },
+        pointLabels: { color:"#9898a8", font:{family:"'DM Mono'",size:10} },
+        min: 0, max: 1,
+      }},
+    }
+  });
+}
+
+/* ═══════════════════════════════════════════════════
+   DECADE TRENDS LINE
+═══════════════════════════════════════════════════ */
+async function loadDecadeTrends() {
+  const data     = await fetchJSON(`${API}/decade-trends`);
+  const decades  = data.map(d => d.decade);
+  const features = ["energy","valence","acousticness","danceability"];
+  const colors   = ["#7c3aed","#06b6d4","#34d399","#f472b6"];
+
+  const datasets = features.map((f,i) => ({
+    label: f,
+    data: data.map(d => +(d[f]||0).toFixed(3)),
+    borderColor: colors[i], backgroundColor: colors[i]+"22",
+    borderWidth: 2, pointRadius: 4, tension: 0.4, fill: false,
+  }));
+
+  new Chart(document.getElementById("chart-decade"), {
+    type: "line",
+    data: { labels: decades, datasets },
+    options: { responsive: true, ...CHART_DEFAULTS }
+  });
+}
+
+/* ═══════════════════════════════════════════════════
+   PCA SCATTER
+═══════════════════════════════════════════════════ */
+async function loadPCA() {
+  const raw    = await fetchJSON(`${API}/pca`);
+  const genres = [...new Set(raw.map(r => r.genre))];
+
+  const datasets = genres.map(g => {
+    const pts = raw.filter(r => r.genre === g);
+    return {
+      label: g,
+      data: pts.map(p => ({ x: +p.pc1.toFixed(3), y: +p.pc2.toFixed(3),
+                             name: p.name, artist: p.artists })),
+      backgroundColor: (GENRE_COLORS[g]||"#888") + "bb",
+      pointRadius: 4, pointHoverRadius: 7,
+    };
+  });
+
+  new Chart(document.getElementById("chart-pca"), {
+    type: "scatter",
+    data: { datasets },
+    options: {
+      responsive: true,
+      plugins: {
+        ...CHART_DEFAULTS.plugins,
+        tooltip: {
+          ...CHART_DEFAULTS.plugins.tooltip,
+          callbacks: {
+            label: ctx => {
+              const d = ctx.raw;
+              return [`${d.name}`, `${d.artist}`];
+            }
+          }
+        }
+      },
+      scales: CHART_DEFAULTS.scales,
+    }
+  });
+}
+
+/* ═══════════════════════════════════════════════════
+   CORRELATION BAR
+═══════════════════════════════════════════════════ */
+async function loadCorrelation() {
+  const { labels, matrix } = await fetchJSON(`${API}/correlation`);
+  const popIdx = labels.indexOf("popularity");
+  const others = labels.filter(l => l !== "popularity");
+  const corrs  = others.map(l => {
+    const i = labels.indexOf(l);
+    return { label: l, val: +matrix[popIdx][i].toFixed(3) };
+  }).sort((a,b) => b.val - a.val);
+
+  const barColors = corrs.map(c =>
+    c.val > 0
+      ? `rgba(124,58,237,${0.4 + Math.abs(c.val)*0.6})`
+      : `rgba(244,114,182,${0.4 + Math.abs(c.val)*0.6})`
+  );
+
+  new Chart(document.getElementById("chart-correlation"), {
+    type: "bar",
+    data: {
+      labels: corrs.map(c => c.label),
+      datasets: [{ label:"Correlation with Popularity", data: corrs.map(c=>c.val),
+                   backgroundColor: barColors, borderRadius: 6, borderSkipped: false }]
+    },
+    options: {
+      indexAxis: "y", responsive: true, ...CHART_DEFAULTS,
+      plugins: { ...CHART_DEFAULTS.plugins, legend: { display: false } },
+      scales: {
+        x: { ...CHART_DEFAULTS.scales.x, min: -0.5, max: 0.5 },
+        y: { ...CHART_DEFAULTS.scales.y },
+      }
+    }
+  });
+}
+
+/* ═══════════════════════════════════════════════════
+   DANCEABILITY BY GENRE
+═══════════════════════════════════════════════════ */
+async function loadDanceability() {
+  const data   = await fetchJSON(`${API}/genre-summary`);
+  const sorted = [...data].sort((a,b) => b.danceability - a.danceability);
+
+  new Chart(document.getElementById("chart-dance"), {
+    type: "bar",
+    data: {
+      labels: sorted.map(d => d.genre),
+      datasets: [{
+        label: "Danceability",
+        data:  sorted.map(d => +d.danceability.toFixed(3)),
+        backgroundColor: sorted.map(d => (GENRE_COLORS[d.genre]||"#888") + "cc"),
+        borderRadius: 8, borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true, ...CHART_DEFAULTS,
+      plugins: { ...CHART_DEFAULTS.plugins, legend:{ display:false } },
+      scales: { ...CHART_DEFAULTS.scales, y: { ...CHART_DEFAULTS.scales.y, min:0, max:1 } }
+    }
+  });
+}
+
+/* ═══════════════════════════════════════════════════
+   MOOD RECOMMENDER
+═══════════════════════════════════════════════════ */
+function featBar(val, label) {
+  const pct = Math.round(Math.min(1, Math.max(0, val)) * 100);
+  return `<div class="feat-bar-wrap">
+    <span class="feat-label">${label}</span>
+    <div class="feat-bar"><div class="feat-bar-fill" style="width:${pct}%"></div></div>
+  </div>`;
+}
+
+async function recommend(mood) {
+  const container = document.getElementById("rec-results");
+  container.innerHTML = `<div class="loading"><div class="spinner"></div>Finding songs…</div>`;
+
+  const res  = await fetchJSON(`${API}/recommend`, {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ mood, top_n: 5 })
+  });
+
+  const songs = res.recommendations;
+  let html = `<div class="results-header">
+    <span class="section-title" style="margin-bottom:0">Top 5 for "${mood}"</span>
+    <span class="results-tag">${songs.length} matches</span>
+  </div><div class="song-list">`;
+
+  songs.forEach((s, i) => {
+    const delay = i * 0.07;
+    html += `<div class="song-card" style="animation-delay:${delay}s">
+      <div class="song-rank">${i+1}</div>
+      <div class="song-info">
+        <div class="song-name">${s.name}</div>
+        <div class="song-artist">${s.artists}</div>
+        <span class="song-genre">${s.genre} · ${s.year}</span>
+      </div>
+      <div class="song-feats">
+        ${featBar(s.valence,      "Valence")}
+        ${featBar(s.energy,       "Energy")}
+        ${featBar(s.danceability, "Dance")}
+        ${featBar(s.acousticness, "Acoustic")}
+      </div>
+    </div>`;
+  });
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+document.getElementById("mood-grid").addEventListener("click", e => {
+  const btn = e.target.closest(".mood-btn");
+  if (!btn) return;
+  document.querySelectorAll(".mood-btn").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  recommend(btn.dataset.mood);
+});
+
+/* ═══════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════ */
+async function init() {
+  try {
+    await Promise.all([
+      loadStats(),
+      loadGenreRadar(),
+      loadDecadeTrends(),
+      loadPCA(),
+      loadCorrelation(),
+      loadDanceability(),
+    ]);
+  } catch(err) {
+    console.error("API error:", err);
+    document.querySelector(".wrapper").insertAdjacentHTML("afterbegin",
+      `<div style="background:rgba(244,63,94,0.12);border:1px solid rgba(244,63,94,0.3);
+       border-radius:10px;padding:14px 20px;margin-top:20px;color:#f87171;font-size:0.8rem;">
+       ⚠️ Could not reach the Flask API at <code>http://127.0.0.1:5000</code>. 
+       Make sure you ran <code>python backend/app.py</code> first.
+      </div>`
+    );
+  }
+}
+
+init();
+</script>
+</body>
+</html>
