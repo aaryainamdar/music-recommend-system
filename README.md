@@ -258,7 +258,7 @@ Moods are matched by weighted distance across audio features:
 | Backend | Python 3.10+, Flask, Flask-CORS |
 | ML | scikit-learn (K-Means, PCA, StandardScaler) |
 | Data | pandas, NumPy |
-| Dataset | Spotify dataset (Kaggle)- by Vatsal Mavani |
+| Dataset | Spotify dataset (Kaggle)- by Vatsal Mavani- https://www.kaggle.com/datasets/vatsalmavani/spotify-dataset|
 
 ---
 
